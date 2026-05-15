@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from '@google/genai';
+import Groq from 'groq-sdk';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -11,7 +11,7 @@ interface Message {
   content: string;
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? '' });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY ?? '', dangerouslyAllowBrowser: true });
 
 const SYSTEM_INSTRUCTION = `You are StudyBuddy AI, a friendly and knowledgeable study companion.
 Your role is to help students learn, understand, and review any topic they bring to you.
@@ -53,18 +53,20 @@ export default function App() {
 
     try {
       const history = messages.map((m) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
       }));
 
-      const chat = ai.chats.create({
-        model: 'gemini-2.0-flash',
-        config: { systemInstruction: SYSTEM_INSTRUCTION },
-        history,
+      const response = await groq.chat.completions.create({
+        model: 'mixtral-8x7b-32768',
+        messages: [
+          { role: 'system', content: SYSTEM_INSTRUCTION },
+          ...history,
+          { role: 'user', content: trimmed },
+        ],
       });
 
-      const response = await chat.sendMessage({ message: trimmed });
-      const text = response.text ?? '';
+      const text = response.choices[0]?.message?.content ?? '';
 
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
@@ -234,7 +236,7 @@ export default function App() {
           </button>
         </form>
         <p className="text-center text-xs text-gray-400 mt-2">
-          Powered by Gemini · StudyBuddy AI may make mistakes — always verify important information
+          Powered by Groq · StudyBuddy AI may make mistakes — always verify important information
         </p>
       </footer>
     </div>
